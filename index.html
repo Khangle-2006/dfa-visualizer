@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NFA → DFA Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+  <style>
+    :root {
+      --bg:#0d0f14; --bg2:#13161e; --bg3:#1a1e28; --panel:#161b25;
+      --border:#252c3d; --border2:#2e3750;
+      --text:#e8ecf4; --text2:#8892aa; --text3:#525d78;
+      --accent:#4f8ef7; --accent2:#6c63ff;
+      --green:#3ecf8e; --red:#ef4444;
+      --node-fill:#1e2535; --node-stroke:#3a4460;
+      --edge:#3a4460; --edge-hl:#4f8ef7;
+      --r: 10px; --rs: 8px;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+    /* ── Shell ── */
+    .app-shell{display:grid;grid-template-columns:300px 1fr;flex:1;min-height:0}
+    /* ── Panel ── */
+    .control-panel{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:12px;padding:18px 16px;overflow-y:auto;overflow-x:hidden}
+    .control-panel::-webkit-scrollbar{width:3px}
+    .control-panel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+    .brand{padding-bottom:12px;border-bottom:1px solid var(--border)}
+    .brand h1{font-size:18px;font-weight:700;letter-spacing:-0.3px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .brand .subtitle{font-size:11px;color:var(--text3);margin-top:2px}
+    /* Tabs nav */
+    .nav-tabs{display:grid;grid-template-columns:repeat(3,1fr);background:var(--bg3);border-radius:var(--rs);padding:3px;gap:2px}
+    .nav-btn{padding:6px 4px;border:none;border-radius:6px;background:transparent;color:var(--text2);font-family:'Outfit',sans-serif;font-size:11px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap}
+    .nav-btn.active{background:var(--accent);color:#fff}
+    .nav-btn:not(.active):hover{background:var(--border);color:var(--text)}
+    /* Views */
+    .view{display:none;flex-direction:column;gap:8px}
+    .view.active{display:flex}
+    label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)}
+    textarea{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;padding:10px 12px;resize:vertical;min-height:170px;outline:none;transition:border-color .2s}
+    textarea:focus{border-color:var(--accent)}
+    .table-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:10px;font-size:12px;color:var(--text2);overflow-x:auto;min-height:80px}
+    .table-wrap table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:11px}
+    .table-wrap th{color:var(--text3);font-weight:600;text-transform:uppercase;font-size:9px;letter-spacing:.5px;padding:5px 8px;border-bottom:1px solid var(--border);text-align:center}
+    .table-wrap td{padding:5px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--text)}
+    .table-wrap tr:last-child td{border-bottom:none}
+    .table-wrap tr:hover td{background:var(--bg2)}
+    /* Buttons */
+    .button-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    button{font-family:'Outfit',sans-serif;font-size:12px;font-weight:600;padding:8px 12px;border:none;border-radius:var(--rs);cursor:pointer;transition:all .2s;letter-spacing:.2px}
+    #buildBtn{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;box-shadow:0 2px 10px rgba(79,142,247,.3)}
+    #buildBtn:hover{transform:translateY(-1px);box-shadow:0 4px 18px rgba(79,142,247,.4)}
+    #nextBtn,#autoBtn{background:var(--bg3);border:1px solid var(--border2);color:var(--text)}
+    #nextBtn:not([disabled]):hover,#autoBtn:not([disabled]):hover{background:var(--border);border-color:var(--accent);color:var(--accent)}
+    #resetBtn{background:var(--bg3);border:1px solid var(--border);color:var(--text2)}
+    #resetBtn:not([disabled]):hover{border-color:var(--red);color:var(--red)}
+    button[disabled]{opacity:.3;cursor:not-allowed}
+    /* Status */
+    .status{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:9px 12px;display:flex;flex-direction:column;gap:3px}
+    .status div{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px}
+    .status strong{color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:600;min-width:44px}
+    .status span{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text)}
+    /* Step Log */
+    .step-log-wrap{display:flex;flex-direction:column;gap:4px}
+    #stepLog{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;font-size:10.5px;font-family:'JetBrains Mono',monospace;color:var(--text2);max-height:130px;overflow-y:auto;min-height:60px}
+    #stepLog::-webkit-scrollbar{width:3px}
+    #stepLog::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+    .log-entry{padding:2px 0;border-bottom:1px solid var(--border);line-height:1.55}
+    .log-entry:last-child{border-bottom:none;color:var(--accent)}
+    .log-entry.log-start{color:var(--green)}
+    .log-entry.log-done{color:var(--accent)}
+    .hint{font-size:10px;color:var(--text3);line-height:1.5;padding-top:2px}
+    .hint code{font-family:'JetBrains Mono',monospace;background:var(--bg3);padding:1px 4px;border-radius:3px;color:var(--accent);font-size:9px}
+    /* ── Stage ── */
+    .stage-panel{display:grid;grid-template-rows:1fr 1fr;overflow:hidden}
+    .canvas-card{display:flex;flex-direction:column;background:var(--bg2);border-bottom:1px solid var(--border);overflow:hidden}
+    .canvas-card:last-child{border-bottom:none}
+    .canvas-card header{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 8px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .canvas-card header h2{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+    .canvas-card svg{flex:1;width:100%;height:100%;cursor:grab}
+    .canvas-card svg:active{cursor:grabbing}
+    /* ── Bottom bar ── */
+    .log-panel{background:var(--panel);border-top:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:24px;flex-shrink:0}
+    .log-panel h2{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);white-space:nowrap;flex-shrink:0}
+    .tuple-list{list-style:none;display:flex;flex-wrap:wrap;gap:6px 20px}
+    .tuple-list li{font-size:12px;color:var(--text2)}
+    .tuple-list strong{color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:.4px;margin-right:5px}
+    .tuple-list span{font-family:'JetBrains Mono',monospace;color:var(--text);font-size:11px}
+    /* ── Graph styles ── */
+    /* ── Node shapes (ellipse) ── */
+    .node-body{fill:var(--node-fill);stroke:var(--node-stroke);stroke-width:2px;cursor:grab;transition:fill .25s,stroke .25s}
+    .node-body:active{cursor:grabbing}
+    .node.start .node-body{stroke:#3ecf8e;stroke-width:2px}
+    .node.final .node-body{stroke:#4f8ef7;stroke-width:2px;fill:rgba(79,142,247,.07)}
+    .node.both .node-body{stroke:#3ecf8e;stroke-width:2px;fill:rgba(62,207,142,.07)}
+    .node.highlighted .node-body{stroke:#4f8ef7;stroke-width:2.5px;fill:rgba(79,142,247,.16)}
+    .node.new-node .node-body{stroke:#3ecf8e;fill:rgba(62,207,142,.1)}
+    .node text{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;fill:var(--text);pointer-events:none;text-anchor:middle;dominant-baseline:central}
+    .node .inner-ring{fill:none;stroke-width:1.5px;pointer-events:none}
+    .node.final .inner-ring,.node.both .inner-ring{stroke:#4f8ef7;display:block}
+    .node.start .inner-ring,.node:not(.final):not(.both) .inner-ring{display:none}
+    .start-arrow{fill:none;stroke:#3ecf8e;stroke-width:2px;marker-end:url(#arrowStart)}
+    .link{fill:none;stroke:var(--edge);stroke-width:1.6px;marker-end:url(#arrow);transition:stroke .25s}
+    .link.highlighted{stroke:#4f8ef7;stroke-width:2.2px}
+    .link.epsilon{stroke-dasharray:4,3}
+    .link.new-edge{stroke:#3ecf8e}
+    .link-label{font-family:'Outfit',sans-serif;font-size:11px;font-weight:500;fill:var(--text2);pointer-events:none}
+    .link-label.highlighted{fill:#4f8ef7}
+    .link-label.epsilon{fill:var(--text3)}
+    @keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(79,142,247,.4)}50%{box-shadow:0 0 0 5px rgba(79,142,247,0)}}
+    #autoBtn.playing{background:rgba(79,142,247,.1);border-color:var(--accent);color:var(--accent);animation:pulse-border 1.5s ease infinite}
+    /* ── Help modal ── */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+    .modal-overlay.open{display:flex}
+    .modal{background:var(--panel);border:1px solid var(--border2);border-radius:14px;width:680px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.6)}
+    .modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 22px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+    .modal-header h2{font-size:16px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+    .modal-close{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:18px;cursor:pointer;width:30px;height:30px;display:flex;align-items:center;justify-content:center;transition:all .2s;padding:0}
+    .modal-close:hover{border-color:var(--red);color:var(--red)}
+    .modal-body{overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:22px}
+    .modal-body::-webkit-scrollbar{width:4px}
+    .modal-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+    .help-section h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--accent);margin-bottom:10px}
+    .help-section p,.help-section li{font-size:13px;color:var(--text2);line-height:1.65}
+    .help-section ul{padding-left:16px;display:flex;flex-direction:column;gap:4px}
+    .help-section li::marker{color:var(--accent)}
+    .help-code{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);line-height:1.7;white-space:pre}
+    .help-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .help-card{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+    .help-card h4{font-size:11px;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+    .help-card p{font-size:12px;color:var(--text2);line-height:1.55}
+    .help-badge{display:inline-block;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-right:4px}
+    .hb-blue{background:rgba(79,142,247,.15);color:#4f8ef7}
+    .hb-green{background:rgba(62,207,142,.15);color:#3ecf8e}
+    .hb-gray{background:rgba(82,93,120,.2);color:#8892aa}
+    .steps-list{display:flex;flex-direction:column;gap:8px}
+    .step-item{display:flex;gap:10px;align-items:flex-start}
+    .step-num{background:var(--accent);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:1px}
+    .step-text{font-size:12.5px;color:var(--text2);line-height:1.55}
+    .step-text strong{color:var(--text)}
+    /* mini svg demo */
+    .demo-svg-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:8px;overflow:hidden;display:flex;justify-content:center;padding:8px}
+    .demo-svg-wrap svg{width:100%;max-width:420px;height:120px}
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <aside class="control-panel">
+    <div class="brand">
+      <h1>NFA → DFA Visualizer</h1>
+      <p class="subtitle">Subset construction · Step-by-step</p>
+    </div>
+
+    <div class="nav-tabs" role="tablist">
+      <button id="navRaw" class="nav-btn active">Raw Input</button>
+      <button id="navTable" class="nav-btn">Trans. Table</button>
+      <button id="navHelp" class="nav-btn">Guide ✦</button>
+    </div>
+
+    <div id="viewRaw" class="view active">
+      <label for="nfaInput">NFA Definition</label>
+      <textarea id="nfaInput" spellcheck="false"># Directives
+start: q0
+final: q3
+alphabet: a,b
+
+# Transitions: from -symbol-> to
+q0 -epsilon-> q1
+q0 -b-> q0
+q1 -a-> q1
+q1 -b-> q2
+q2 -a-> q3
+q2 -b-> q0
+q3 -a-> q3
+q3 -b-> q3</textarea>
+    </div>
+
+    <div id="viewTable" class="view">
+      <label>Transition Table</label>
+      <div id="transitionTableMount" class="table-wrap">Build graph to generate table.</div>
+    </div>
+
+    <div class="button-row">
+      <button id="buildBtn">Build Graph</button>
+      <button id="nextBtn" disabled>Next Step</button>
+    </div>
+    <div class="button-row">
+      <button id="autoBtn" disabled>Auto Play</button>
+      <button id="resetBtn" disabled>Reset</button>
+    </div>
+
+    <div class="status">
+      <div><strong>Frame</strong><span id="frameInfo">0 / 0</span></div>
+      <div><strong>State</strong><span id="stateInfo">Idle</span></div>
+    </div>
+
+    <div class="step-log-wrap">
+      <label>Step Log</label>
+      <div id="stepLog"><span style="color:var(--text3);font-size:10px">Build a graph to start…</span></div>
+    </div>
+
+    <p class="hint">Epsilon: <code>epsilon</code> <code>eps</code> <code>λ</code></p>
+  </aside>
+
+  <main class="stage-panel">
+    <section class="canvas-card">
+      <header><h2>Original NFA</h2></header>
+      <svg id="nfaSvg" aria-label="NFA canvas"></svg>
+    </section>
+    <section class="canvas-card">
+      <header><h2>Emerging DFA</h2></header>
+      <svg id="dfaSvg" aria-label="DFA canvas"></svg>
+    </section>
+  </main>
+</div>
+
+<section class="log-panel">
+  <h2>Automaton</h2>
+  <ul class="tuple-list">
+    <li><strong>Q:</strong><span id="tupleStates">—</span></li>
+    <li><strong>Σ:</strong><span id="tupleAlphabet">—</span></li>
+    <li><strong>q₀:</strong><span id="tupleStart">—</span></li>
+    <li><strong>F:</strong><span id="tupleFinal">—</span></li>
+  </ul>
+</section>
+
+<!-- Help Modal -->
+<div class="modal-overlay" id="helpModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>User Guide</h2>
+      <button class="modal-close" id="closeHelp">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="help-section">
+        <h3>What is this app?</h3>
+        <p>This tool visualizes the conversion from an <strong style="color:var(--accent)">NFA → DFA</strong> using the <em>Subset Construction</em> algorithm. You can watch each step of the DFA being built from any NFA you define.</p>
+      </div>
+
+      <div class="help-section">
+        <h3>How to define an NFA</h3>
+        <p style="margin-bottom:8px">Write your NFA definition in the <strong>Raw Input</strong> tab using this syntax:</p>
+        <div class="help-code"># Directives
+start: q0          ← start state
+final: q2,q3       ← accepting states (comma-separated)
+alphabet: a,b      ← input symbols
+
+# Transitions:  from -symbol-> to
+q0 -a-> q1
+q0 -epsilon-> q2   ← epsilon / eps / λ are all accepted
+q1 -b-> q1
+q1 -a-> q2</div>
+      </div>
+
+      <div class="help-section">
+        <h3>Step-by-step workflow</h3>
+        <div class="steps-list">
+          <div class="step-item"><div class="step-num">1</div><div class="step-text"><strong>Define your NFA</strong> — type or edit the NFA definition in the text area.</div></div>
+          <div class="step-item"><div class="step-num">2</div><div class="step-text"><strong>Build Graph</strong> — click to render the NFA graph and pre-compute all conversion steps.</div></div>
+          <div class="step-item"><div class="step-num">3</div><div class="step-text"><strong>Next Step</strong> — advance through each frame of the subset construction one at a time.</div></div>
+          <div class="step-item"><div class="step-num">4</div><div class="step-text"><strong>Auto Play</strong> — automatically run all frames. Click again to pause.</div></div>
+          <div class="step-item"><div class="step-num">5</div><div class="step-text"><strong>Reset</strong> — go back to frame zero and replay from the beginning.</div></div>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <h3>Interacting with the graph</h3>
+        <div class="help-grid">
+          <div class="help-card">
+            <h4>🖱 Drag nodes</h4>
+            <p>Click and hold any node to drag it. Edges update in real-time as you move nodes around.</p>
+          </div>
+          <div class="help-card">
+            <h4>🔍 Zoom & Pan</h4>
+            <p>Scroll to zoom in/out. Drag the empty canvas to pan the entire graph.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <h3>Graph notation</h3>
+        <div class="help-grid">
+          <div class="help-card">
+            <h4>States</h4>
+            <p><span class="help-badge hb-green">→ Node</span> Start state (incoming arrow)<br><br>
+               <span class="help-badge hb-blue">⊙ Node</span> Accepting state (double ring)<br><br>
+               <span class="help-badge hb-gray">Node</span> Regular state</p>
+          </div>
+          <div class="help-card">
+            <h4>DFA States</h4>
+            <p>Each DFA node is labeled <strong>A, B, C…</strong> The small text below shows the corresponding NFA subset, e.g. <code style="font-size:10px;color:var(--accent)">{q0,q1}</code>.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <h3>Example: NFA accepting strings ending in "ab"</h3>
+        <div class="help-code">start: s0
+final: s2
+alphabet: a,b
+
+s0 -a-> s0
+s0 -b-> s0
+s0 -a-> s1
+s1 -b-> s2</div>
+        <p style="margin-top:8px;font-size:12px">This NFA is non-deterministic because from <code style="color:var(--accent);font-size:11px">s0</code> on input <code style="color:var(--accent);font-size:11px">a</code> it can go to either <code style="color:var(--accent);font-size:11px">s0</code> or <code style="color:var(--accent);font-size:11px">s1</code>. Subset construction produces an equivalent DFA.</p>
+      </div>
+
+      <div class="help-section">
+        <h3>Step Log</h3>
+        <p>The <strong>Step Log</strong> panel on the left records a history of each frame: which state is being processed, which symbol is being read, and which new DFA state (if any) was created.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+//  Parser
+// ══════════════════════════════════════════════
+function parseNFA(text) {
+  const nfa = { states:new Set(), alphabet:new Set(), start:null, finals:new Set(), transitions:{} };
+  const EPS = ['epsilon','eps','λ','ε'];
+  for (let raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    if (line.startsWith('start:')) { nfa.start = line.split(':')[1].trim(); continue; }
+    if (line.startsWith('final:')) { line.split(':')[1].trim().split(/[\s,]+/).filter(Boolean).forEach(s=>nfa.finals.add(s)); continue; }
+    if (line.startsWith('alphabet:')) { line.split(':')[1].trim().split(/[\s,]+/).filter(Boolean).forEach(s=>nfa.alphabet.add(s)); continue; }
+    const m = line.match(/^(\S+)\s+-(.+)->\s+(\S+)$/);
+    if (m) {
+      const [,from,sym,to] = m;
+      const symbol = EPS.includes(sym) ? 'ε' : sym;
+      nfa.states.add(from); nfa.states.add(to);
+      if (!nfa.transitions[from]) nfa.transitions[from]={};
+      if (!nfa.transitions[from][symbol]) nfa.transitions[from][symbol]=new Set();
+      nfa.transitions[from][symbol].add(to);
+    }
+  }
+  if (nfa.start) nfa.states.add(nfa.start);
+  return nfa;
+}
+
+function epsClosure(states, transitions) {
+  const stack=[...states], closure=new Set(states);
+  while (stack.length) {
+    const s=stack.pop();
+    for (const t of (transitions[s]?.['ε']||[])) { if(!closure.has(t)){closure.add(t);stack.push(t);} }
+  }
+  return closure;
+}
+
+// ══════════════════════════════════════════════
+//  Subset construction frames
+// ══════════════════════════════════════════════
+function buildSubsetFrames(nfa) {
+  const frames=[], dfaNodes=new Map(), dfaEdges=[];
+  const queue=[], labels='ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  let nc=0;
+  const getLabel=i=>i<26?labels[i]:labels[Math.floor(i/26)-1]+labels[i%26];
+  const setKey=s=>[...s].sort().join(',');
+
+  const startSet=epsClosure(new Set([nfa.start]),nfa.transitions);
+  const startKey=setKey(startSet);
+  dfaNodes.set(startKey,{label:getLabel(nc++),nfaStates:startSet,isFinal:[...startSet].some(s=>nfa.finals.has(s)),isStart:true});
+  queue.push(startKey);
+  frames.push({type:'start',dfaNodes:new Map(dfaNodes),dfaEdges:[...dfaEdges],highlight:{node:startKey},log:`▶ Start: ε-closure({${nfa.start}}) = {${[...startSet].join(', ')}} → State ${dfaNodes.get(startKey).label}`});
+
+  while (queue.length) {
+    const ck=queue.shift(), cn=dfaNodes.get(ck);
+    frames.push({type:'process',dfaNodes:new Map(dfaNodes),dfaEdges:[...dfaEdges],highlight:{node:ck},log:`⚙ Processing ${cn.label} = {${[...cn.nfaStates].join(', ')}}`});
+    for (const sym of nfa.alphabet) {
+      const reachable=new Set();
+      for (const s of cn.nfaStates) for (const t of (nfa.transitions[s]?.[sym]||[])) reachable.add(t);
+      if (!reachable.size) continue;
+      const closure=epsClosure(reachable,nfa.transitions), key=setKey(closure);
+      const isNew=!dfaNodes.has(key);
+      if (isNew) { dfaNodes.set(key,{label:getLabel(nc++),nfaStates:closure,isFinal:[...closure].some(s=>nfa.finals.has(s)),isStart:false}); queue.push(key); }
+      dfaEdges.push({from:ck,to:key,symbol:sym});
+      const lbl=dfaNodes.get(key).label;
+      frames.push({type:isNew?'new-node':'new-edge',dfaNodes:new Map(dfaNodes),dfaEdges:[...dfaEdges],highlight:{node:key,edge:dfaEdges.length-1},log:`${isNew?'✦ NEW':'→'} on '${sym}': {${[...cn.nfaStates].join(',')}} → {${[...closure].join(',')}} → ${lbl}${isNew?' (new)':''}`});
+    }
+  }
+  frames.push({type:'done',dfaNodes:new Map(dfaNodes),dfaEdges:[...dfaEdges],highlight:{},log:`✓ Done — ${dfaNodes.size} DFA states`});
+  return frames;
+}
+
+// ══════════════════════════════════════════════
+//  Graph Renderer — ellipse nodes, inline labels
+// ══════════════════════════════════════════════
+// Measure text width using a hidden SVG text element
+const _measurer = (() => {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.style.cssText='position:absolute;visibility:hidden;pointer-events:none;width:0;height:0';
+  document.body.appendChild(svg);
+  const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+  t.style.fontFamily = "'JetBrains Mono', monospace";
+  t.style.fontSize   = '11px';
+  t.style.fontWeight = '500';
+  svg.appendChild(t);
+  return (str) => { t.textContent = str; return t.getBBox().width; };
+})();
+
+// Compute rx,ry for a node given its label text
+function nodeSize(label) {
+  const pad = 18; // horizontal padding each side
+  const w   = _measurer(label);
+  const rx  = Math.max(26, w/2 + pad);
+  const ry  = 14;  // fixed height — ellipse shape
+  return { rx, ry };
+}
+
+// Intersection of a ray from center (cx,cy) at angle θ with ellipse (rx,ry)
+function ellipseEdge(cx, cy, rx, ry, angle) {
+  // parametric: scale angle so ellipse boundary is reached
+  const cosA = Math.cos(angle), sinA = Math.sin(angle);
+  const t = 1 / Math.sqrt((cosA*cosA)/(rx*rx) + (sinA*sinA)/(ry*ry));
+  return { x: cx + t*cosA, y: cy + t*sinA };
+}
+
+class GraphRenderer {
+  constructor(svgEl) {
+    this.svgEl=svgEl; this.sim=null; this.nodes=[]; this.links=[];
+    this.svg=d3.select(svgEl);
+    this._setupDefs(); this._setupZoom();
+    this.g=this.svg.append('g');
+    this.gL=this.g.append('g');
+    this.gN=this.g.append('g');
+  }
+
+  _setupDefs() {
+    const defs=this.svg.append('defs');
+    // Regular edge arrows: refX=9 (tip at path end, which is on ellipse boundary)
+    const mk=(id,col,rx=9,sz=6)=>defs.append('marker').attr('id',id)
+      .attr('viewBox','0 -5 10 10').attr('refX',rx).attr('refY',0)
+      .attr('markerWidth',sz).attr('markerHeight',sz).attr('orient','auto')
+      .append('path').attr('d','M0,-5L10,0L0,5').attr('fill',col);
+    mk('arrow','#3a4460');
+    mk('arrowHl','#4f8ef7');
+    mk('arrowGreen','#3ecf8e');
+    mk('arrowStart','#3ecf8e');
+    // Self-loop arrows: arc endpoint tangent is tangent to circle, refX=9 works
+    mk('arrowSelf','#4a5578',9,5);
+    mk('arrowSelfHl','#4f8ef7',9,5);
+    mk('arrowSelfGreen','#3ecf8e',9,5);
+  }
+
+  _setupZoom() {
+    const zoom=d3.zoom().scaleExtent([.2,4]).on('zoom',e=>{ if(this.g) this.g.attr('transform',e.transform); });
+    this.svg.call(zoom); this._zoom=zoom;
+  }
+
+  setData(nodes, links, highlight={}) {
+    const old={};
+    this.nodes.forEach(n=>{ old[n.id]={x:n.x,y:n.y,vx:n.vx,vy:n.vy}; });
+    this.nodes=nodes.map(n=>{
+      const sz=nodeSize(n.label);
+      const o=old[n.id];
+      return o ? {...n,...sz,x:o.x,y:o.y,vx:o.vx||0,vy:o.vy||0} : {...n,...sz};
+    });
+    this.links=links.map(l=>({...l}));
+    this._render(highlight);
+  }
+
+  _render(hl={}) {
+    const ndRef=this;
+    const W=this.svgEl.clientWidth||700, H=this.svgEl.clientHeight||200;
+
+    if (this.sim) this.sim.stop();
+
+    this.sim=d3.forceSimulation(this.nodes)
+      .force('link',d3.forceLink(this.links).id(d=>d.id).distance(150).strength(.3))
+      .force('charge',d3.forceManyBody().strength(-500))
+      .force('center',d3.forceCenter(W/2,H/2))
+      .force('collision',d3.forceCollide(d=>Math.max(d.rx,d.ry)+28))
+      .alphaDecay(.025)
+      .on('tick',ticked);
+
+    // Regular edges: path + label
+    const lkSel=this.gL.selectAll('g.lg').data(
+      this.links.map((l,i)=>({...l,_i:i})).filter(l=>{
+        const f=typeof l.source==='object'?l.source.id:l.source;
+        const t=typeof l.target==='object'?l.target.id:l.target;
+        return f!==t;
+      }),(_,i)=>i)
+      .join(enter=>{ const g=enter.append('g').attr('class','lg'); g.append('path'); g.append('text'); return g; });
+
+    // Self-loops: circle + arrow-path + label  (one group per self-link)
+    const slSel=this.gL.selectAll('g.sl').data(
+      this.links.map((l,i)=>({...l,_i:i})).filter(l=>{
+        const f=typeof l.source==='object'?l.source.id:l.source;
+        const t=typeof l.target==='object'?l.target.id:l.target;
+        return f===t;
+      }),(_,i)=>i)
+      .join(enter=>{
+        const g=enter.append('g').attr('class','sl');
+        g.append('circle').attr('class','self-circle');
+        g.append('path').attr('class','self-arrow');
+        g.append('text').attr('class','link-label');
+        return g;
+      });
+
+    // edgeMap for regular edges only (using global _i index for parallel detection)
+    const edgeMap={};
+    this.links.forEach((l,i)=>{
+      const f=typeof l.source==='object'?l.source.id:l.source;
+      const t=typeof l.target==='object'?l.target.id:l.target;
+      if(f===t) return; // skip self
+      const k=`${f}__${t}`; if(!edgeMap[k]) edgeMap[k]=[]; edgeMap[k].push(i);
+    });
+    const nSel=this.gN.selectAll('g.node').data(this.nodes,d=>d.id)
+      .join(
+        enter=>{
+          const g=enter.append('g').attr('class',d=>nodeClass(d,hl));
+          // outer ellipse
+          g.append('ellipse').attr('class','node-body');
+          // inner ellipse (final state double ring)
+          g.append('ellipse').attr('class','inner-ring');
+          // label directly inside
+          g.append('text').attr('class','node-label').attr('text-anchor','middle').attr('dominant-baseline','central');
+          // start arrow (local coords, fixed)
+          g.filter(d=>d.isStart).append('line').attr('class','start-arrow').attr('y1',0).attr('y2',0);
+          g.call(d3.drag()
+            .on('start',(e,d)=>{ if(!e.active) ndRef.sim.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; })
+            .on('drag',(e,d)=>{ d.fx=e.x; d.fy=e.y; })
+            .on('end',(e,d)=>{ if(!e.active) ndRef.sim.alphaTarget(0); d.fx=null; d.fy=null; })
+          );
+          return g;
+        },
+        update=>{ update.attr('class',d=>nodeClass(d,hl)); return update; }
+      );
+
+    // Update ellipse sizes and label text every render
+    nSel.select('.node-body').attr('rx',d=>d.rx).attr('ry',d=>d.ry);
+    nSel.select('.inner-ring').attr('rx',d=>d.rx-5).attr('ry',d=>d.ry-5);
+    nSel.select('.node-label').text(d=>d.label);
+    // Update start arrow x positions based on rx
+    nSel.select('.start-arrow')
+      .attr('x1',d=>-d.rx-32).attr('x2',d=>-d.rx-1);
+
+    function nodeClass(d,h) {
+      const c=['node'];
+      if(h.node===d.id)             c.push('highlighted');
+      else if(d.isNew)              c.push('new-node');
+      else if(d.isStart&&d.isFinal) c.push('both');
+      else if(d.isStart)            c.push('start');
+      else if(d.isFinal)            c.push('final');
+      return c.join(' ');
+    }
+
+    // Per-node self-loop index map (for fanning)
+    const selfMap={};
+    ndRef.links.forEach((l,i)=>{
+      const f=typeof l.source==='object'?l.source.id:l.source;
+      const t=typeof l.target==='object'?l.target.id:l.target;
+      if(f===t){ if(!selfMap[f]) selfMap[f]=[]; selfMap[f].push(i); }
+    });
+
+    function ticked() {
+      nSel.attr('transform',d=>`translate(${d.x},${d.y})`);
+
+      // ── Self-loops ──
+      slSel.each(function(d) {
+        const src=d.source;
+        if(src.x==null) return;
+        const fid=typeof src==='object'?src.id:src;
+        const allSelf=selfMap[fid]||[];
+        const idx=allSelf.indexOf(d._i), total=allSelf.length;
+        const srx=src.rx||26, sry=src.ry||14;
+        const isHl=hl.edge===d._i, isNw=d.isNew, eps=d.symbol==='ε';
+
+        // Direction of this loop (fan if multiple)
+        const spread=(idx-(total-1)/2)*0.85;
+        const base=-Math.PI/2+spread;
+
+        // Exit/entry: wide apart on ellipse so they look separated
+        const gap=0.55;
+        const exitA = base-gap, entryA = base+gap;
+        const ep = ellipseEdge(src.x,src.y,srx,sry,exitA);
+        const np = ellipseEdge(src.x,src.y,srx,sry,entryA);
+
+        // Loop size: small and tight
+        const reach = sry + Math.max(srx*0.5, 16);
+
+        // Both control points pulled straight up in base direction — makes a round loop
+        const pull = reach * 1.1;
+        const cp1x = src.x + Math.cos(base)*pull;
+        const cp1y = src.y + Math.sin(base)*pull;
+        const cp2x = cp1x, cp2y = cp1y;
+
+        const pathD=`M ${ep.x},${ep.y} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${np.x},${np.y}`;
+
+        const stroke=isHl?'#4f8ef7':isNw?'#3ecf8e':'#4a5578';
+        const sw=isHl?2.2:1.8;
+        const mArrow=isHl?'url(#arrowSelfHl)':isNw?'url(#arrowSelfGreen)':'url(#arrowSelf)';
+
+        d3.select(this).select('.self-circle').attr('r',0);
+        d3.select(this).select('.self-arrow')
+          .attr('d',pathD)
+          .attr('fill','none').attr('stroke',stroke).attr('stroke-width',sw)
+          .attr('stroke-dasharray',eps?'4,3':null)
+          .attr('marker-end',mArrow);
+
+        // Label at apex
+        const apexX=src.x+Math.cos(base)*reach;
+        const apexY=src.y+Math.sin(base)*reach;
+        d3.select(this).select('text')
+          .attr('x',apexX)
+          .attr('y',apexY+Math.sin(base)*12)
+          .attr('class',`link-label${eps?' epsilon':''}${isHl?' highlighted':''}`)
+          .text(d.symbol);
+      });
+
+      // ── Regular edges ──
+      lkSel.each(function(d,i){
+        const pg=d3.select(this).select('path'), tg=d3.select(this).select('text');
+        const src=d.source, tgt=d.target;
+        if(!src||!tgt||src.x==null||tgt.x==null) return;
+        const fid=typeof src==='object'?src.id:src;
+        const tid=typeof tgt==='object'?tgt.id:tgt;
+        const key=`${fid}__${tid}`, siblings=edgeMap[key]||[i];
+        const idx=siblings.indexOf(i), total=siblings.length;
+        const isHl=hl.edge===d._i, isNw=d.isNew, eps=d.symbol==='ε';
+        const srx=src.rx||26, sry=src.ry||14;
+        const trx=tgt.rx||26, try_=tgt.ry||14;
+        let pathD,lx,ly;
+
+        if(total===1){
+          const dx=tgt.x-src.x, dy=tgt.y-src.y;
+          const angle=Math.atan2(dy,dx);
+          const sp=ellipseEdge(src.x,src.y,srx,sry,angle);
+          const tp=ellipseEdge(tgt.x,tgt.y,trx,try_,angle+Math.PI);
+          pathD=`M ${sp.x},${sp.y} L ${tp.x},${tp.y}`;
+          const dist2=Math.sqrt(dx*dx+dy*dy)||1;
+          lx=(sp.x+tp.x)/2+(-dy/dist2)*13; ly=(sp.y+tp.y)/2+(dx/dist2)*13-2;
+        } else {
+          const dx=tgt.x-src.x, dy=tgt.y-src.y;
+          const dist2=Math.sqrt(dx*dx+dy*dy)||1;
+          const nx=-dy/dist2, ny=dx/dist2;
+          const off=(idx-(total-1)/2)*50;
+          const angle=Math.atan2(dy,dx);
+          const sp=ellipseEdge(src.x,src.y,srx,sry,angle);
+          const tp=ellipseEdge(tgt.x,tgt.y,trx,try_,angle+Math.PI);
+          const cx=(sp.x+tp.x)/2+nx*off, cy=(sp.y+tp.y)/2+ny*off;
+          pathD=`M ${sp.x},${sp.y} Q ${cx},${cy} ${tp.x},${tp.y}`;
+          lx=cx+nx*15; ly=cy+ny*15-2;
+        }
+
+        const mArrow=isHl?'url(#arrowHl)':isNw?'url(#arrowGreen)':'url(#arrow)';
+        pg.attr('d',pathD)
+          .attr('class',`link${eps?' epsilon':''}${isHl?' highlighted':''}${isNw?' new-edge':''}`)
+          .attr('marker-end',mArrow);
+        tg.attr('x',lx).attr('y',ly)
+          .attr('class',`link-label${eps?' epsilon':''}${isHl?' highlighted':''}`)
+          .text(d.symbol);
+      });
+    }
+  }
+
+  clear() {
+    if(this.sim){this.sim.stop();this.sim=null;}
+    this.nodes=[];this.links=[];
+    this.gL.selectAll('*').remove();
+    this.gN.selectAll('*').remove();
+  }
+}
+
+// ══════════════════════════════════════════════
+//  App
+// ══════════════════════════════════════════════
+let nfa=null, frames=[], frameIdx=0, autoTimer=null;
+let nfaR=null, dfaR=null;
+
+const buildBtn=document.getElementById('buildBtn');
+const nextBtn=document.getElementById('nextBtn');
+const autoBtn=document.getElementById('autoBtn');
+const resetBtn=document.getElementById('resetBtn');
+const frameInfo=document.getElementById('frameInfo');
+const stateInfo=document.getElementById('stateInfo');
+const stepLog=document.getElementById('stepLog');
+
+window.addEventListener('DOMContentLoaded',()=>{
+  nfaR=new GraphRenderer(document.getElementById('nfaSvg'));
+  dfaR=new GraphRenderer(document.getElementById('dfaSvg'));
+});
+
+// Nav tabs
+document.getElementById('navRaw').addEventListener('click',()=>switchNav('Raw'));
+document.getElementById('navTable').addEventListener('click',()=>switchNav('Table'));
+document.getElementById('navHelp').addEventListener('click',()=>{ document.getElementById('helpModal').classList.add('open'); });
+document.getElementById('closeHelp').addEventListener('click',()=>{ document.getElementById('helpModal').classList.remove('open'); });
+document.getElementById('helpModal').addEventListener('click',e=>{ if(e.target===document.getElementById('helpModal')) document.getElementById('helpModal').classList.remove('open'); });
+
+function switchNav(to) {
+  ['Raw','Table'].forEach(t=>{
+    document.getElementById('nav'+t).classList.toggle('active',t===to);
+    document.getElementById('view'+t).classList.toggle('active',t===to);
+  });
+}
+
+// Build
+buildBtn.addEventListener('click',()=>{
+  const text=document.getElementById('nfaInput').value;
+  nfa=parseNFA(text);
+
+  const nfaNodes=[...nfa.states].map(s=>({id:s,label:s,isStart:s===nfa.start,isFinal:nfa.finals.has(s),sublabel:''}));
+  const nfaLinks=[];
+  for (const [from,syms] of Object.entries(nfa.transitions))
+    for (const [sym,targets] of Object.entries(syms))
+      for (const to of targets) nfaLinks.push({source:from,target:to,symbol:sym});
+  nfaR.setData(nfaNodes,nfaLinks);
+
+  frames=buildSubsetFrames(nfa);
+  frameIdx=0;
+
+  document.getElementById('tupleStates').textContent=`{ ${[...nfa.states].join(', ')} }`;
+  document.getElementById('tupleAlphabet').textContent=`{ ${[...nfa.alphabet].join(', ')} }`;
+  document.getElementById('tupleStart').textContent=nfa.start;
+  document.getElementById('tupleFinal').textContent=`{ ${[...nfa.finals].join(', ')} }`;
+  buildTransitionTable(nfa);
+
+  nextBtn.disabled=false; autoBtn.disabled=false; resetBtn.disabled=false;
+  dfaR.clear();
+  stepLog.innerHTML='<span style="color:var(--text3);font-size:10px">Press Next Step or Auto Play…</span>';
+  updateStatus();
+});
+
+function buildTransitionTable(nfa) {
+  const syms=[...nfa.alphabet,'ε'], states=[...nfa.states];
+  let h='<table><thead><tr><th>State</th>';
+  for(const s of syms) h+=`<th>${s}</th>`;
+  h+='</tr></thead><tbody>';
+  for(const st of states){
+    const p=(st===nfa.start?'→ ':'')+(nfa.finals.has(st)?'* ':'');
+    h+=`<tr><td>${p}${st}</td>`;
+    for(const s of syms){const t=nfa.transitions[st]?.[s]; h+=`<td>${t&&t.size?`{${[...t].join(',')}}`:' Ø '}</td>`;}
+    h+='</tr>';
+  }
+  h+='</tbody></table>';
+  document.getElementById('transitionTableMount').innerHTML=h;
+}
+
+function applyFrame(f) {
+  const nodes=[], links=[];
+  for(const [key,nd] of f.dfaNodes.entries()) {
+    // Label = the NFA subset directly: {q0,q1,...}
+    const setLabel = `{${[...nd.nfaStates].join(', ')}}`;
+    nodes.push({
+      id: key,
+      label: setLabel,
+      isStart: nd.isStart,
+      isFinal: nd.isFinal,
+      isNew: f.type==='new-node' && f.highlight.node===key
+    });
+  }
+  f.dfaEdges.forEach((e,i)=>links.push({source:e.from,target:e.to,symbol:e.symbol,isNew:f.type==='new-edge'&&f.highlight.edge===i}));
+  const h={};
+  if(f.highlight.node) h.node=f.highlight.node;
+  if(f.highlight.edge!==undefined) h.edge=f.highlight.edge;
+  dfaR.setData(nodes,links,h);
+  stateInfo.textContent=f.type==='done'?'Complete':f.type==='start'?'Starting':f.type==='process'?'Processing':'New State';
+
+  // Update step log — show set notation
+  if (stepLog.querySelector('span')) stepLog.innerHTML='';
+  const entry=document.createElement('div');
+  entry.className='log-entry'+(f.type==='start'?' log-start':f.type==='done'?' log-done':'');
+  // Replace ABCD letter references in log with set notation where possible
+  entry.textContent=f.log;
+  stepLog.appendChild(entry);
+  stepLog.scrollTop=stepLog.scrollHeight;
+}
+
+nextBtn.addEventListener('click',()=>{
+  if(frameIdx>=frames.length) return;
+  applyFrame(frames[frameIdx]); frameIdx++;
+  updateStatus();
+  if(frameIdx>=frames.length){nextBtn.disabled=true;autoBtn.disabled=true;stopAuto();}
+});
+
+autoBtn.addEventListener('click',()=>{
+  if(autoTimer){stopAuto();return;}
+  autoBtn.textContent='⏸ Pause'; autoBtn.classList.add('playing');
+  autoTimer=setInterval(()=>{
+    if(frameIdx>=frames.length){stopAuto();return;}
+    applyFrame(frames[frameIdx]); frameIdx++;
+    updateStatus();
+    if(frameIdx>=frames.length){nextBtn.disabled=true;autoBtn.disabled=true;stopAuto();}
+  },750);
+});
+
+function stopAuto(){
+  clearInterval(autoTimer);autoTimer=null;
+  autoBtn.textContent='Auto Play';autoBtn.classList.remove('playing');
+}
+
+resetBtn.addEventListener('click',()=>{
+  stopAuto(); frameIdx=0; dfaR.clear();
+  nextBtn.disabled=false; autoBtn.disabled=false;
+  stateInfo.textContent='Idle';
+  stepLog.innerHTML='<span style="color:var(--text3);font-size:10px">Press Next Step or Auto Play…</span>';
+  updateStatus();
+});
+
+function updateStatus(){
+  frameInfo.textContent=`${frameIdx} / ${frames.length}`;
+}
+</script>
+</body>
+</html>
