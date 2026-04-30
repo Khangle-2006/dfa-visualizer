@@ -22,11 +22,17 @@
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden}
     /* ── Shell ── */
-    .app-shell{display:grid;grid-template-columns:300px 1fr;flex:1;min-height:0}
+    .app-shell{display:flex;flex-direction:row;flex:1;min-height:0;overflow:hidden}
+    /* ── Panel wrapper (holds panel + resize handle) ── */
+    .panel-wrapper{display:flex;flex-direction:row;flex-shrink:0;position:relative;width:300px;min-width:0;max-width:600px}
     /* ── Panel ── */
-    .control-panel{background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;gap:12px;padding:18px 16px;overflow-y:auto;overflow-x:hidden}
-    .control-panel::-webkit-scrollbar{width:3px}
-    .control-panel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+    .control-panel{background:var(--panel);display:flex;flex-direction:column;gap:12px;padding:18px 16px;overflow-y:auto;overflow-x:hidden;flex:1;min-width:0}
+    .control-panel::-webkit-scrollbar{width:0;display:none}
+    /* ── Panel resize handle (right edge) ── */
+    .panel-resize-handle{width:5px;flex-shrink:0;cursor:col-resize;background:var(--border);transition:background .2s;position:relative;z-index:10}
+    .panel-resize-handle:hover,.panel-resize-handle.dragging{background:var(--accent)}
+    .panel-resize-handle::after{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:3px;height:32px;background:var(--border2);border-radius:2px}
+    .panel-resize-handle:hover::after,.panel-resize-handle.dragging::after{background:rgba(255,255,255,.6)}
     .brand{padding-bottom:12px;border-bottom:1px solid var(--border)}
     .brand h1{font-size:18px;font-weight:700;letter-spacing:-0.3px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
     .brand .subtitle{font-size:11px;color:var(--text3);margin-top:2px}
@@ -39,9 +45,18 @@
     .view{display:none;flex-direction:column;gap:8px}
     .view.active{display:flex}
     label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)}
-    textarea{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;padding:10px 12px;resize:vertical;min-height:170px;outline:none;transition:border-color .2s}
+    textarea{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.7;padding:10px 12px;resize:vertical;min-height:170px;outline:none;transition:border-color .2s;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
     textarea:focus{border-color:var(--accent)}
-    .table-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:10px;font-size:12px;color:var(--text2);overflow-x:auto;min-height:80px}
+    textarea::-webkit-scrollbar{width:5px}
+    textarea::-webkit-scrollbar-track{background:transparent;border-radius:4px}
+    textarea::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+    textarea::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+    .table-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:10px;font-size:12px;color:var(--text2);overflow-x:auto;min-height:80px;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+    .table-wrap::-webkit-scrollbar{width:5px;height:5px}
+    .table-wrap::-webkit-scrollbar-track{background:transparent;border-radius:4px}
+    .table-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+    .table-wrap::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+    .table-wrap::-webkit-scrollbar-corner{background:transparent}
     .table-wrap table{width:100%;border-collapse:collapse;font-family:'JetBrains Mono',monospace;font-size:11px}
     .table-wrap th{color:var(--text3);font-weight:600;text-transform:uppercase;font-size:9px;letter-spacing:.5px;padding:5px 8px;border-bottom:1px solid var(--border);text-align:center}
     .table-wrap td{padding:5px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--text)}
@@ -73,14 +88,54 @@
     .log-entry.log-done{color:var(--accent)}
     .hint{font-size:10px;color:var(--text3);line-height:1.5;padding-top:2px}
     .hint code{font-family:'JetBrains Mono',monospace;background:var(--bg3);padding:1px 4px;border-radius:3px;color:var(--accent);font-size:9px}
+    /* Input mode row */
+    .input-mode-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .mode-btn{padding:6px 8px;border:1px solid var(--border);border-radius:var(--rs);background:var(--bg3);color:var(--text2);font-family:'Outfit',sans-serif;font-size:11px;font-weight:500;cursor:pointer;transition:all .2s}
+    .mode-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .mode-btn:not(.active):hover{border-color:var(--accent);color:var(--accent)}
+    /* Syntax hint bar */
+    .syntax-hint{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:5px 8px;line-height:1.8;word-break:break-all}
+    .sh-tag{color:var(--accent);font-weight:600}
+    /* Preset list */
+    .preset-list{display:flex;flex-direction:column;gap:4px}
+    .preset-item{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:8px}
+    .preset-item:hover,.preset-item.selected{border-color:var(--accent);background:rgba(79,142,247,.07)}
+    .preset-item .pi-icon{font-size:16px;flex-shrink:0}
+    .preset-item .pi-info{display:flex;flex-direction:column;gap:1px}
+    .preset-item .pi-name{font-size:12px;font-weight:600;color:var(--text)}
+    .preset-item .pi-desc{font-size:10px;color:var(--text3)}
+    .preset-preview-wrap{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+    .preset-preview{background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:8px 10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text2);line-height:1.65;white-space:pre;overflow:auto;max-height:130px;margin:0;scrollbar-width:thin;scrollbar-color:var(--border2) transparent}
+    .preset-preview::-webkit-scrollbar{width:5px;height:5px}
+    .preset-preview::-webkit-scrollbar-track{background:transparent;border-radius:4px}
+    .preset-preview::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+    .preset-preview::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+    .preset-preview::-webkit-scrollbar-corner{background:transparent}
+    /* Editable table cells */
+    .table-wrap td.editable{cursor:text;transition:background .15s}
+    .table-wrap td.editable:hover{background:rgba(79,142,247,.08)}
+    .table-wrap td.editable:focus{background:rgba(79,142,247,.12);outline:1px solid var(--accent);color:var(--accent)}
+    .table-wrap td.state-cell{cursor:text;transition:background .15s}
+    .table-wrap td.state-cell:hover{background:rgba(62,207,142,.08)}
+    .table-wrap td.state-cell:focus{background:rgba(62,207,142,.12);outline:1px solid var(--green);color:var(--green)}
+    .table-note{font-size:10px;color:var(--text3);margin-top:6px;font-style:italic}
+    /* Resizable table wrapper */
+    .table-resizable-wrap{position:relative;display:flex;flex-direction:column}
+    .table-resize-handle{height:8px;background:var(--border);border-radius:0 0 var(--rs) var(--rs);cursor:row-resize;display:flex;align-items:center;justify-content:center;transition:background .2s;user-select:none;font-size:8px;color:var(--text3);letter-spacing:2px}
+    .table-resize-handle:hover{background:var(--accent);color:#fff}
+    .table-resize-handle.dragging{background:var(--accent)}
     /* ── Stage ── */
-    .stage-panel{display:grid;grid-template-rows:1fr 1fr;overflow:hidden}
-    .canvas-card{display:flex;flex-direction:column;background:var(--bg2);border-bottom:1px solid var(--border);overflow:hidden}
-    .canvas-card:last-child{border-bottom:none}
+    .stage-panel{display:grid;grid-template-rows:1fr 8px 1fr;overflow:hidden;flex:1;min-width:0}
+    .canvas-card{display:flex;flex-direction:column;background:var(--bg2);overflow:hidden}
     .canvas-card header{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 8px;border-bottom:1px solid var(--border);flex-shrink:0}
     .canvas-card header h2{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
     .canvas-card svg{flex:1;width:100%;height:100%;cursor:grab}
     .canvas-card svg:active{cursor:grabbing}
+    /* Resizer between NFA and DFA panels */
+    .panel-resizer{background:var(--border);cursor:row-resize;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s;position:relative}
+    .panel-resizer:hover,.panel-resizer.dragging{background:var(--accent)}
+    .panel-resizer::after{content:'';display:block;width:32px;height:3px;background:var(--border2);border-radius:2px}
+    .panel-resizer:hover::after{background:#fff}
     /* ── Bottom bar ── */
     .log-panel{background:var(--panel);border-top:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:24px;flex-shrink:0}
     .log-panel h2{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);white-space:nowrap;flex-shrink:0}
@@ -147,6 +202,7 @@
 </head>
 <body>
 <div class="app-shell">
+  <div class="panel-wrapper" id="panelWrapper">
   <aside class="control-panel">
     <div class="brand">
       <h1>NFA → DFA Visualizer</h1>
@@ -160,13 +216,28 @@
     </div>
 
     <div id="viewRaw" class="view active">
-      <label for="nfaInput">NFA Definition</label>
-      <textarea id="nfaInput" spellcheck="false"># Directives
+      <!-- Input mode toggle -->
+      <div class="input-mode-row">
+        <button class="mode-btn active" id="modeCustom">✏️ Custom Input</button>
+        <button class="mode-btn" id="modePreset">📚 Preset Examples</button>
+      </div>
+
+      <!-- Custom input -->
+      <div id="customInputArea">
+        <label for="nfaInput">NFA Definition</label>
+        <div class="syntax-hint">
+          <span class="sh-tag">start:</span> q0 &nbsp;|&nbsp;
+          <span class="sh-tag">final:</span> q1,q2 &nbsp;|&nbsp;
+          <span class="sh-tag">alphabet:</span> a,b &nbsp;|&nbsp;
+          <span class="sh-tag">q0 -a-&gt; q1</span>
+        </div>
+        <textarea id="nfaInput" spellcheck="false"># ── Directives ──────────────────
 start: q0
 final: q3
 alphabet: a,b
 
-# Transitions: from -symbol-> to
+# ── Transitions: from -symbol-> to
+# (use epsilon / eps / λ for ε-moves)
 q0 -epsilon-> q1
 q0 -b-> q0
 q1 -a-> q1
@@ -175,11 +246,26 @@ q2 -a-> q3
 q2 -b-> q0
 q3 -a-> q3
 q3 -b-> q3</textarea>
+      </div>
+
+      <!-- Preset examples -->
+      <div id="presetArea" style="display:none;flex-direction:column;gap:8px">
+        <label>Choose a preset</label>
+        <div class="preset-list" id="presetList"></div>
+        <div class="preset-preview-wrap">
+          <label>Preview</label>
+          <pre id="presetPreview" class="preset-preview"></pre>
+          <button id="loadPresetBtn" style="margin-top:6px;width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--rs);padding:8px;font-family:Outfit,sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Load this Example →</button>
+        </div>
+      </div>
     </div>
 
     <div id="viewTable" class="view">
-      <label>Transition Table</label>
-      <div id="transitionTableMount" class="table-wrap">Build graph to generate table.</div>
+      <label>Transition Table <span style="color:var(--text3);font-weight:400;font-size:9px;text-transform:none;letter-spacing:0">— drag bottom edge to resize</span></label>
+      <div class="table-resizable-wrap" id="tableResizableWrap">
+        <div id="transitionTableMount" class="table-wrap" style="overflow-y:auto;min-height:80px;max-height:220px;border-radius:var(--rs) var(--rs) 0 0">Build graph to generate table.</div>
+        <div class="table-resize-handle" id="tableResizeHandle">· · ·</div>
+      </div>
     </div>
 
     <div class="button-row">
@@ -203,13 +289,16 @@ q3 -b-> q3</textarea>
 
     <p class="hint">Epsilon: <code>epsilon</code> <code>eps</code> <code>λ</code></p>
   </aside>
+  <div class="panel-resize-handle" id="panelResizeHandle" title="Drag to resize panel"></div>
+  </div>
 
-  <main class="stage-panel">
-    <section class="canvas-card">
+  <main class="stage-panel" id="stagePanel">
+    <section class="canvas-card" id="nfaCard">
       <header><h2>Original NFA</h2></header>
       <svg id="nfaSvg" aria-label="NFA canvas"></svg>
     </section>
-    <section class="canvas-card">
+    <div class="panel-resizer" id="panelResizer" title="Drag to resize"></div>
+    <section class="canvas-card" id="dfaCard">
       <header><h2>Emerging DFA</h2></header>
       <svg id="dfaSvg" aria-label="DFA canvas"></svg>
     </section>
@@ -237,81 +326,140 @@ q3 -b-> q3</textarea>
 
       <div class="help-section">
         <h3>What is this app?</h3>
-        <p>This tool visualizes the conversion from an <strong style="color:var(--accent)">NFA → DFA</strong> using the <em>Subset Construction</em> algorithm. You can watch each step of the DFA being built from any NFA you define.</p>
+        <p>This tool visualizes the conversion from an <strong style="color:var(--accent)">NFA → DFA</strong> using the <em>Subset Construction</em> algorithm. You can watch each step of the DFA being built step-by-step from any NFA you define.</p>
       </div>
 
       <div class="help-section">
-        <h3>How to define an NFA</h3>
-        <p style="margin-bottom:8px">Write your NFA definition in the <strong>Raw Input</strong> tab using this syntax:</p>
-        <div class="help-code"># Directives
-start: q0          ← start state
-final: q2,q3       ← accepting states (comma-separated)
-alphabet: a,b      ← input symbols
+        <h3>🖥️ Interface Overview</h3>
+        <div class="help-grid">
+          <div class="help-card">
+            <h4>Left Panel</h4>
+            <p>Contains all input controls: Raw Input, Transition Table, and the Guide. Also shows Frame counter, State status, and Step Log.</p>
+          </div>
+          <div class="help-card">
+            <h4>Right Canvas</h4>
+            <p>Two interactive graph panels — <strong>Original NFA</strong> (top) and <strong>Emerging DFA</strong> (bottom). Drag the divider between them to resize.</p>
+          </div>
+        </div>
+      </div>
 
-# Transitions:  from -symbol-> to
-q0 -a-> q1
-q0 -epsilon-> q2   ← epsilon / eps / λ are all accepted
-q1 -b-> q1
+      <div class="help-section">
+        <h3>🔘 Buttons explained</h3>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="help-card">
+            <h4>🔨 Build Graph</h4>
+            <p>Parses your NFA input and draws the graph. Also pre-computes all subset construction steps. <strong>Always click this first</strong> after defining or editing your NFA.</p>
+          </div>
+          <div class="help-card">
+            <h4>⏭ Next Step</h4>
+            <p>Advances the DFA construction by <strong>one frame</strong>. Each frame corresponds to one subset construction action — processing a state, creating a new DFA state, or adding a transition.</p>
+          </div>
+          <div class="help-card">
+            <h4>▶️ Auto Play</h4>
+            <p>Automatically plays through all frames at 750ms per step. Click again to <strong>pause</strong>. The button pulses blue while playing.</p>
+          </div>
+          <div class="help-card">
+            <h4>🔄 Reset</h4>
+            <p>Clears the DFA canvas and rewinds to frame 0, without changing your NFA input. Useful to replay the animation from the beginning.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="help-section">
+        <h3>📋 Step Log</h3>
+        <p>The Step Log records each action as frames play. Entries include:</p>
+        <ul style="margin-top:8px">
+          <li><span style="color:var(--green)">▶ Start</span> — initial ε-closure computed for start state</li>
+          <li><span style="color:var(--text2)">⚙ Processing</span> — a DFA state is being expanded</li>
+          <li><span style="color:var(--accent)">✦ NEW</span> — a brand-new DFA state was discovered</li>
+          <li><span style="color:var(--text2)">→ on 'x'</span> — an existing transition was confirmed</li>
+          <li><span style="color:var(--accent)">✓ Done</span> — conversion complete</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h3>📝 Raw Input — Syntax Guide</h3>
+        <p style="margin-bottom:10px">Write your NFA in plain text. Lines starting with <code style="color:var(--accent);font-size:11px">#</code> are comments.</p>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="help-card">
+            <h4>① start: &lt;state&gt;</h4>
+            <p>The <strong>initial state</strong> of the NFA.<br>
+            <code style="color:var(--green);font-size:11px">start: q0</code></p>
+          </div>
+          <div class="help-card">
+            <h4>② final: &lt;s1&gt;, &lt;s2&gt;, …</h4>
+            <p><strong>Accepting states</strong>, comma-separated.<br>
+            <code style="color:var(--green);font-size:11px">final: q2</code> &nbsp;or&nbsp; <code style="color:var(--green);font-size:11px">final: q2, q3</code></p>
+          </div>
+          <div class="help-card">
+            <h4>③ alphabet: &lt;s1&gt;, &lt;s2&gt;, …</h4>
+            <p><strong>Input symbols</strong> (do NOT include epsilon).<br>
+            <code style="color:var(--green);font-size:11px">alphabet: a, b</code></p>
+          </div>
+          <div class="help-card">
+            <h4>④ Transitions: from -symbol-&gt; to</h4>
+            <p>Type a <strong>dash</strong> <code style="color:var(--accent);font-size:12px">-</code> then the symbol then a <strong>greater-than</strong> <code style="color:var(--accent);font-size:12px">&gt;</code> — that's your arrow <code style="color:var(--green);font-size:11px">-a-&gt;</code><br><br>
+            <code style="color:var(--green);font-size:11px">q0 -a-&gt; q1</code><br><br>
+            For <strong>ε-moves</strong>: <code style="color:var(--accent);font-size:11px">epsilon</code> &nbsp;<code style="color:var(--accent);font-size:11px">eps</code> &nbsp;<code style="color:var(--accent);font-size:11px">λ</code><br>
+            <code style="color:var(--green);font-size:11px">q0 -epsilon-&gt; q1</code></p>
+          </div>
+        </div>
+        <p style="margin-top:10px;font-size:12px;color:var(--text2)"><strong style="color:var(--text)">Full template:</strong></p>
+        <div class="help-code"># ── Directives ───────────────────
+start: q0
+final: q2          # multiple: q1, q2
+alphabet: a, b     # do NOT include epsilon here
+
+# ── Transitions: from -symbol-> to ──
+q0 -a-> q1         # dash + symbol + > makes the arrow
+q0 -epsilon-> q2   # epsilon transition (ε-move)
+q1 -b-> q1         # self-loop
 q1 -a-> q2</div>
       </div>
 
       <div class="help-section">
-        <h3>Step-by-step workflow</h3>
-        <div class="steps-list">
-          <div class="step-item"><div class="step-num">1</div><div class="step-text"><strong>Define your NFA</strong> — type or edit the NFA definition in the text area.</div></div>
-          <div class="step-item"><div class="step-num">2</div><div class="step-text"><strong>Build Graph</strong> — click to render the NFA graph and pre-compute all conversion steps.</div></div>
-          <div class="step-item"><div class="step-num">3</div><div class="step-text"><strong>Next Step</strong> — advance through each frame of the subset construction one at a time.</div></div>
-          <div class="step-item"><div class="step-num">4</div><div class="step-text"><strong>Auto Play</strong> — automatically run all frames. Click again to pause.</div></div>
-          <div class="step-item"><div class="step-num">5</div><div class="step-text"><strong>Reset</strong> — go back to frame zero and replay from the beginning.</div></div>
-        </div>
-      </div>
-
-      <div class="help-section">
-        <h3>Interacting with the graph</h3>
+        <h3>📊 Transition Table</h3>
+        <p style="margin-bottom:8px">The <strong>Trans. Table</strong> tab shows and lets you edit the NFA transitions in table form.</p>
         <div class="help-grid">
           <div class="help-card">
-            <h4>🖱 Drag nodes</h4>
-            <p>Click and hold any node to drag it. Edges update in real-time as you move nodes around.</p>
+            <h4>✏️ Edit cells</h4>
+            <p>Click <strong>any cell</strong> — including the State column — to edit it. Type new values like <code style="font-size:10px;color:var(--accent)">{q1,q2}</code> or <code style="font-size:10px;color:var(--accent)">Ø</code> for empty.</p>
           </div>
           <div class="help-card">
-            <h4>🔍 Zoom & Pan</h4>
-            <p>Scroll to zoom in/out. Drag the empty canvas to pan the entire graph.</p>
+            <h4>🔄 Auto-sync</h4>
+            <p>Press <strong>Enter</strong> or click away to apply. The Raw Input textarea updates automatically — then press Build Graph to see the new NFA.</p>
+          </div>
+          <div class="help-card">
+            <h4>↕ Resize table</h4>
+            <p>Drag the <strong>bottom edge</strong> (the dotted bar below the table) up or down to make the table taller or shorter.</p>
+          </div>
+          <div class="help-card">
+            <h4>→ / * prefixes</h4>
+            <p><code style="font-size:10px;color:var(--green)">→</code> marks the start state. <code style="font-size:10px;color:var(--accent)">*</code> marks accepting states. These are display-only — don't type them when editing.</p>
           </div>
         </div>
       </div>
 
       <div class="help-section">
-        <h3>Graph notation</h3>
+        <h3>🖱️ Interacting with graphs</h3>
         <div class="help-grid">
           <div class="help-card">
-            <h4>States</h4>
-            <p><span class="help-badge hb-green">→ Node</span> Start state (incoming arrow)<br><br>
-               <span class="help-badge hb-blue">⊙ Node</span> Accepting state (double ring)<br><br>
-               <span class="help-badge hb-gray">Node</span> Regular state</p>
+            <h4>Drag nodes</h4>
+            <p>Click and hold any node to drag it anywhere. Edges update in real-time.</p>
           </div>
           <div class="help-card">
-            <h4>DFA States</h4>
-            <p>Each DFA node is labeled <strong>A, B, C…</strong> The small text below shows the corresponding NFA subset, e.g. <code style="font-size:10px;color:var(--accent)">{q0,q1}</code>.</p>
+            <h4>Zoom & Pan</h4>
+            <p>Scroll to zoom. Drag the empty canvas background to pan.</p>
+          </div>
+          <div class="help-card">
+            <h4>Resize panels</h4>
+            <p>Drag the horizontal divider between the NFA and DFA panels to change their heights.</p>
+          </div>
+          <div class="help-card">
+            <h4>Graph notation</h4>
+            <p><span class="help-badge hb-green">→</span> start &nbsp; <span class="help-badge hb-blue">⊙</span> accepting &nbsp; dashed edge = ε</p>
           </div>
         </div>
-      </div>
-
-      <div class="help-section">
-        <h3>Example: NFA accepting strings ending in "ab"</h3>
-        <div class="help-code">start: s0
-final: s2
-alphabet: a,b
-
-s0 -a-> s0
-s0 -b-> s0
-s0 -a-> s1
-s1 -b-> s2</div>
-        <p style="margin-top:8px;font-size:12px">This NFA is non-deterministic because from <code style="color:var(--accent);font-size:11px">s0</code> on input <code style="color:var(--accent);font-size:11px">a</code> it can go to either <code style="color:var(--accent);font-size:11px">s0</code> or <code style="color:var(--accent);font-size:11px">s1</code>. Subset construction produces an equivalent DFA.</p>
-      </div>
-
-      <div class="help-section">
-        <h3>Step Log</h3>
-        <p>The <strong>Step Log</strong> panel on the left records a history of each frame: which state is being processed, which symbol is being read, and which new DFA state (if any) was created.</p>
       </div>
 
     </div>
@@ -667,6 +815,32 @@ class GraphRenderer {
     this.gL.selectAll('*').remove();
     this.gN.selectAll('*').remove();
   }
+
+  focusNode(nodeId, animated=true) {
+    if(!nodeId) return;
+    // Wait a bit for simulation to settle positions
+    const tryFocus = (attempt=0) => {
+      const nd = this.nodes.find(n=>n.id===nodeId);
+      if(!nd || nd.x==null || nd.y==null) {
+        if(attempt<12) setTimeout(()=>tryFocus(attempt+1), 80);
+        return;
+      }
+      const W = this.svgEl.clientWidth||700;
+      const H = this.svgEl.clientHeight||200;
+      const scale = 1.4;
+      const tx = W/2 - scale*nd.x;
+      const ty = H/2 - scale*nd.y;
+      const transform = d3.zoomIdentity.translate(tx, ty).scale(scale);
+      const sel = d3.select(this.svgEl);
+      if(animated) {
+        sel.transition().duration(500).ease(d3.easeCubicOut)
+          .call(this._zoom.transform, transform);
+      } else {
+        sel.call(this._zoom.transform, transform);
+      }
+    };
+    setTimeout(()=>tryFocus(), 60);
+  }
 }
 
 // ══════════════════════════════════════════════
@@ -686,6 +860,7 @@ const stepLog=document.getElementById('stepLog');
 window.addEventListener('DOMContentLoaded',()=>{
   nfaR=new GraphRenderer(document.getElementById('nfaSvg'));
   dfaR=new GraphRenderer(document.getElementById('dfaSvg'));
+  initPresets();
 });
 
 // Nav tabs
@@ -729,21 +904,6 @@ buildBtn.addEventListener('click',()=>{
   updateStatus();
 });
 
-function buildTransitionTable(nfa) {
-  const syms=[...nfa.alphabet,'ε'], states=[...nfa.states];
-  let h='<table><thead><tr><th>State</th>';
-  for(const s of syms) h+=`<th>${s}</th>`;
-  h+='</tr></thead><tbody>';
-  for(const st of states){
-    const p=(st===nfa.start?'→ ':'')+(nfa.finals.has(st)?'* ':'');
-    h+=`<tr><td>${p}${st}</td>`;
-    for(const s of syms){const t=nfa.transitions[st]?.[s]; h+=`<td>${t&&t.size?`{${[...t].join(',')}}`:' Ø '}</td>`;}
-    h+='</tr>';
-  }
-  h+='</tbody></table>';
-  document.getElementById('transitionTableMount').innerHTML=h;
-}
-
 function applyFrame(f) {
   const nodes=[], links=[];
   for(const [key,nd] of f.dfaNodes.entries()) {
@@ -762,6 +922,8 @@ function applyFrame(f) {
   if(f.highlight.node) h.node=f.highlight.node;
   if(f.highlight.edge!==undefined) h.edge=f.highlight.edge;
   dfaR.setData(nodes,links,h);
+  // Auto-pan DFA canvas to the highlighted node
+  if(f.highlight.node) dfaR.focusNode(f.highlight.node);
   stateInfo.textContent=f.type==='done'?'Complete':f.type==='start'?'Starting':f.type==='process'?'Processing':'New State';
 
   // Update step log — show set notation
@@ -808,6 +970,338 @@ resetBtn.addEventListener('click',()=>{
 function updateStatus(){
   frameInfo.textContent=`${frameIdx} / ${frames.length}`;
 }
+
+// ══════════════════════════════════════════════
+//  Editable Transition Table
+// ══════════════════════════════════════════════
+function buildTransitionTable(nfa) {
+  const syms=[...nfa.alphabet,'ε'], states=[...nfa.states];
+  const wrap=document.getElementById('transitionTableMount');
+
+  let h='<table><thead><tr><th>State</th>';
+  for(const s of syms) h+=`<th>${s}</th>`;
+  h+='</tr></thead><tbody>';
+
+  for(const st of states){
+    const isStart=st===nfa.start, isFinal=nfa.finals.has(st);
+    const prefix=(isStart?'→ ':'')+(isFinal?'* ':'');
+    // State cell: contenteditable so user can rename it
+    h+=`<tr><td class="state-cell" contenteditable="true" data-orig="${st}" title="Click to rename state">${prefix}${st}</td>`;
+    for(const s of syms){
+      const t=nfa.transitions[st]?.[s];
+      const val=t&&t.size?`{${[...t].join(',')}}`:' Ø ';
+      h+=`<td class="editable" contenteditable="true" data-from="${st}" data-sym="${s}">${val}</td>`;
+    }
+    h+='</tr>';
+  }
+  h+='</tbody></table>';
+  h+='<p class="table-note">✏️ Click any cell (including State) to edit · Enter to apply</p>';
+  wrap.innerHTML=h;
+
+  // Apply on Enter key or blur, then sync raw input
+  wrap.querySelectorAll('td.editable, td.state-cell').forEach(td=>{
+    td.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();td.blur();} });
+    td.addEventListener('blur',()=>syncTableToRaw(nfa, wrap));
+  });
+}
+
+function syncTableToRaw(nfa, wrap) {
+  const rows=[...wrap.querySelectorAll('tbody tr')];
+  const syms=[...nfa.alphabet,'ε'];
+
+  // Build new state mapping: original → new name
+  const stateMap={};
+  rows.forEach(row=>{
+    const sc=row.querySelector('.state-cell');
+    if(!sc) return;
+    const orig=sc.dataset.orig;
+    // Strip prefix markers (→ * ) from display text
+    const raw=sc.textContent.replace(/^[→*\s]+/,'').trim();
+    stateMap[orig]=raw||orig;
+  });
+
+  // Collect new NFA data from table
+  const newStates=Object.values(stateMap);
+  const newStart=stateMap[nfa.start]||nfa.start;
+  const newFinals=new Set([...nfa.finals].map(f=>stateMap[f]||f));
+  const transitions={};
+
+  rows.forEach(row=>{
+    const sc=row.querySelector('.state-cell');
+    if(!sc) return;
+    const origFrom=sc.dataset.orig;
+    const newFrom=stateMap[origFrom]||origFrom;
+    const cells=[...row.querySelectorAll('td.editable')];
+    cells.forEach((td,i)=>{
+      const sym=td.dataset.sym;
+      if(sym==='ε') return; // skip epsilon col
+      const val=td.textContent.trim().replace(/[{}\s]/g,'');
+      if(val && val!=='Ø') {
+        val.split(',').filter(Boolean).forEach(to=>{
+          const newTo=stateMap[to]||to;
+          if(!transitions[newFrom]) transitions[newFrom]={};
+          if(!transitions[newFrom][sym]) transitions[newFrom][sym]=new Set();
+          transitions[newFrom][sym].add(newTo);
+        });
+      }
+    });
+  });
+
+  // Rebuild raw input text
+  let raw=`start: ${newStart}\nfinal: ${[...newFinals].join(', ')}\nalphabet: ${[...nfa.alphabet].join(', ')}\n\n`;
+  for(const [from,symsMap] of Object.entries(transitions)){
+    for(const [sym,targets] of Object.entries(symsMap)){
+      for(const to of targets){
+        raw+=`${from} -${sym}-> ${to}\n`;
+      }
+    }
+  }
+  // Also preserve epsilon transitions (read from original nfa)
+  for(const [from,symsMap] of Object.entries(nfa.transitions)){
+    const newFrom=stateMap[from]||from;
+    if(symsMap['ε']){
+      for(const to of symsMap['ε']){
+        const newTo=stateMap[to]||to;
+        raw+=`${newFrom} -epsilon-> ${newTo}\n`;
+      }
+    }
+  }
+
+  document.getElementById('nfaInput').value=raw.trim();
+
+  // Update data-orig for state cells after rename
+  wrap.querySelectorAll('td.state-cell').forEach(td=>{
+    const old=td.dataset.orig;
+    td.dataset.orig=stateMap[old]||old;
+  });
+  // Update data-from for editable cells too
+  wrap.querySelectorAll('td.editable').forEach(td=>{
+    const old=td.dataset.from;
+    td.dataset.from=stateMap[old]||old;
+  });
+}
+
+// ══════════════════════════════════════════════
+//  Preset Examples
+// ══════════════════════════════════════════════
+const PRESETS = [
+  {
+    icon:'🔤',
+    name:'Strings ending in "ab"',
+    desc:'Non-deterministic — classic NFA example',
+    text:`# NFA accepting all strings ending with "ab"
+start: q0
+final: q2
+alphabet: a,b
+
+q0 -a-> q0
+q0 -b-> q0
+q0 -a-> q1
+q1 -b-> q2`
+  },
+  {
+    icon:'🔢',
+    name:'Contains "01" as substring',
+    desc:'Binary strings containing 01',
+    text:`# NFA accepting binary strings containing "01"
+start: s0
+final: s2
+alphabet: 0,1
+
+s0 -0-> s0
+s0 -1-> s0
+s0 -0-> s1
+s1 -1-> s2
+s2 -0-> s2
+s2 -1-> s2`
+  },
+  {
+    icon:'🌀',
+    name:'Epsilon transitions',
+    desc:'NFA with ε-moves to multiple states',
+    text:`# NFA with epsilon transitions
+start: q0
+final: q3
+alphabet: a,b
+
+q0 -epsilon-> q1
+q0 -epsilon-> q2
+q1 -a-> q3
+q2 -b-> q3
+q3 -a-> q3
+q3 -b-> q3`
+  },
+  {
+    icon:'♾️',
+    name:'Even number of a\'s',
+    desc:'Strings with even count of symbol a',
+    text:`# NFA accepting strings with even number of a's
+start: q0
+final: q0
+alphabet: a,b
+
+q0 -a-> q1
+q0 -b-> q0
+q1 -a-> q0
+q1 -b-> q1`
+  },
+  {
+    icon:'🔁',
+    name:'Ends with "aa" or "bb"',
+    desc:'Strings ending in aa or bb',
+    text:`# NFA accepting strings ending in "aa" or "bb"
+start: q0
+final: q3,q5
+alphabet: a,b
+
+q0 -a-> q0
+q0 -b-> q0
+q0 -a-> q1
+q1 -a-> q3
+q0 -b-> q4
+q4 -b-> q5`
+  }
+];
+
+let selectedPreset=0;
+
+function initPresets(){
+  const list=document.getElementById('presetList');
+  PRESETS.forEach((p,i)=>{
+    const el=document.createElement('div');
+    el.className='preset-item'+(i===0?' selected':'');
+    el.innerHTML=`<span class="pi-icon">${p.icon}</span><div class="pi-info"><span class="pi-name">${p.name}</span><span class="pi-desc">${p.desc}</span></div>`;
+    el.addEventListener('click',()=>{
+      list.querySelectorAll('.preset-item').forEach(x=>x.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedPreset=i;
+      document.getElementById('presetPreview').textContent=PRESETS[i].text;
+    });
+    list.appendChild(el);
+  });
+  document.getElementById('presetPreview').textContent=PRESETS[0].text;
+
+  document.getElementById('loadPresetBtn').addEventListener('click',()=>{
+    document.getElementById('nfaInput').value=PRESETS[selectedPreset].text;
+    // Switch to custom view so user sees the loaded text
+    document.getElementById('modeCustom').click();
+  });
+}
+
+// Input mode switching
+document.getElementById('modeCustom').addEventListener('click',()=>{
+  document.getElementById('modeCustom').classList.add('active');
+  document.getElementById('modePreset').classList.remove('active');
+  document.getElementById('customInputArea').style.display='flex';
+  document.getElementById('customInputArea').style.flexDirection='column';
+  document.getElementById('customInputArea').style.gap='6px';
+  document.getElementById('presetArea').style.display='none';
+});
+document.getElementById('modePreset').addEventListener('click',()=>{
+  document.getElementById('modePreset').classList.add('active');
+  document.getElementById('modeCustom').classList.remove('active');
+  document.getElementById('presetArea').style.display='flex';
+  document.getElementById('customInputArea').style.display='none';
+});
+
+// ══════════════════════════════════════════════
+//  Left Panel Width Resizer
+// ══════════════════════════════════════════════
+(function(){
+  const handle=document.getElementById('panelResizeHandle');
+  const wrapper=document.getElementById('panelWrapper');
+  if(!handle||!wrapper) return;
+  let drag=false, sx=0, sw=0;
+  handle.addEventListener('mousedown',e=>{
+    drag=true; sx=e.clientX;
+    sw=wrapper.getBoundingClientRect().width;
+    handle.classList.add('dragging');
+    document.body.style.userSelect='none';
+    document.body.style.cursor='col-resize';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!drag) return;
+    const newW=Math.max(200,Math.min(600,sw+(e.clientX-sx)));
+    wrapper.style.width=newW+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    if(!drag) return;
+    drag=false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect='';
+    document.body.style.cursor='';
+  });
+})();
+
+// ══════════════════════════════════════════════
+//  Panel Resizer
+// ══════════════════════════════════════════════
+(function(){
+  const resizer=document.getElementById('panelResizer');
+  const stage=document.getElementById('stagePanel');
+  const nfaCard=document.getElementById('nfaCard');
+  const dfaCard=document.getElementById('dfaCard');
+  let dragging=false, startY=0, startNH=0, startDH=0;
+
+  resizer.addEventListener('mousedown',e=>{
+    dragging=true;
+    startY=e.clientY;
+    startNH=nfaCard.getBoundingClientRect().height;
+    startDH=dfaCard.getBoundingClientRect().height;
+    resizer.classList.add('dragging');
+    document.body.style.userSelect='none';
+    document.body.style.cursor='row-resize';
+  });
+
+  document.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    const dy=e.clientY-startY;
+    const total=startNH+startDH;
+    const newNH=Math.max(60, Math.min(total-60, startNH+dy));
+    const newDH=total-newNH;
+    stage.style.gridTemplateRows=`${newNH}px 8px ${newDH}px`;
+  });
+
+  document.addEventListener('mouseup',()=>{
+    if(!dragging) return;
+    dragging=false;
+    resizer.classList.remove('dragging');
+    document.body.style.userSelect='';
+    document.body.style.cursor='';
+  });
+})();
+
+// ══════════════════════════════════════════════
+//  Table Height Resizer
+// ══════════════════════════════════════════════
+(function(){
+  const handle=document.getElementById('tableResizeHandle');
+  const tbl=document.getElementById('transitionTableMount');
+  if(!handle||!tbl) return;
+  let drag=false, sy=0, sh=0;
+  handle.addEventListener('mousedown',e=>{
+    drag=true; sy=e.clientY;
+    sh=tbl.getBoundingClientRect().height;
+    handle.classList.add('dragging');
+    document.body.style.userSelect='none';
+    document.body.style.cursor='row-resize';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!drag) return;
+    const newH=Math.max(60,Math.min(520,sh+(e.clientY-sy)));
+    tbl.style.maxHeight=newH+'px';
+    tbl.style.minHeight=newH+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    if(!drag) return;
+    drag=false;
+    handle.classList.remove('dragging');
+    document.body.style.userSelect='';
+    document.body.style.cursor='';
+  });
+})();
 </script>
 </body>
 </html>
