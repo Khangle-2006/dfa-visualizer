@@ -166,6 +166,12 @@
     .link-label.epsilon{fill:var(--text3)}
     @keyframes pulse-border{0%,100%{box-shadow:0 0 0 0 rgba(79,142,247,.4)}50%{box-shadow:0 0 0 5px rgba(79,142,247,0)}}
     #autoBtn.playing{background:rgba(79,142,247,.1);border-color:var(--accent);color:var(--accent);animation:pulse-border 1.5s ease infinite}
+    /* Speed selector */
+    .speed-row{display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:6px 10px}
+    .speed-row label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);white-space:nowrap;margin-right:2px}
+    .speed-btn{flex:1;padding:4px 0;font-size:10px;font-family:Outfit,sans-serif;font-weight:600;background:var(--bg2);border:1px solid var(--border2);border-radius:5px;color:var(--text2);cursor:pointer;transition:all .18s;white-space:nowrap}
+    .speed-btn:hover{border-color:var(--accent);color:var(--accent)}
+    .speed-btn.active{background:rgba(79,142,247,.15);border-color:var(--accent);color:var(--accent)}
     /* ── Help modal ── */
     .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
     .modal-overlay.open{display:flex}
@@ -277,6 +283,13 @@ q3 -b-> q3</textarea>
       <button id="resetBtn" disabled>Reset</button>
     </div>
 
+    <div class="speed-row">
+      <label>Speed</label>
+      <button class="speed-btn" data-ms="800">⚡ Fast</button>
+      <button class="speed-btn active" data-ms="1600">▶ Medium</button>
+      <button class="speed-btn" data-ms="2800">🐢 Slow</button>
+    </div>
+
     <div class="status">
       <div><strong>Frame</strong><span id="frameInfo">0 / 0</span></div>
       <div><strong>State</strong><span id="stateInfo">Idle</span></div>
@@ -356,7 +369,14 @@ q3 -b-> q3</textarea>
           </div>
           <div class="help-card">
             <h4>▶️ Auto Play</h4>
-            <p>Automatically plays through all frames at 750ms per step. Click again to <strong>pause</strong>. The button pulses blue while playing.</p>
+            <p>Tự động phát qua toàn bộ frame. Nhấn lại để <strong>tạm dừng</strong>. Nút nhấp xanh khi đang chạy.</p>
+            <p style="margin-top:8px">Bên dưới nút là <strong>bộ chọn tốc độ</strong> gồm 3 mức:</p>
+            <ul style="margin-top:6px;padding-left:14px;display:flex;flex-direction:column;gap:4px">
+              <li><strong style="color:var(--accent)">⚡ Fast</strong> — 0.8s/step, xem nhanh toàn bộ quá trình</li>
+              <li><strong style="color:var(--accent)">▶ Medium</strong> — 1.6s/step, mặc định, đủ thời gian đọc log</li>
+              <li><strong style="color:var(--accent)">🐢 Slow</strong> — 2.8s/step, quan sát kỹ từng node/cạnh được thêm vào</li>
+            </ul>
+            <p style="margin-top:8px;color:var(--text3);font-size:11px">Camera sẽ tự động pan đến node đang được xây dựng ở mỗi bước — tốc độ chậm hơn giúp dễ theo dõi hơn.</p>
           </div>
           <div class="help-card">
             <h4>🔄 Reset</h4>
@@ -943,6 +963,18 @@ nextBtn.addEventListener('click',()=>{
   if(frameIdx>=frames.length){nextBtn.disabled=true;autoBtn.disabled=true;stopAuto();}
 });
 
+// Speed selector
+let autoPlayMs = 1600;
+document.querySelectorAll('.speed-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.speed-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    autoPlayMs = parseInt(btn.dataset.ms);
+    // restart timer if currently playing
+    if(autoTimer){ stopAuto(); autoBtn.click(); }
+  });
+});
+
 autoBtn.addEventListener('click',()=>{
   if(autoTimer){stopAuto();return;}
   autoBtn.textContent='⏸ Pause'; autoBtn.classList.add('playing');
@@ -951,7 +983,7 @@ autoBtn.addEventListener('click',()=>{
     applyFrame(frames[frameIdx]); frameIdx++;
     updateStatus();
     if(frameIdx>=frames.length){nextBtn.disabled=true;autoBtn.disabled=true;stopAuto();}
-  },750);
+  },autoPlayMs);
 });
 
 function stopAuto(){
